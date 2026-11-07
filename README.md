@@ -1,5 +1,7 @@
 # Mini Support Inbox
 
+**Live demo:** https://mini-support-inbox.onrender.com (free hosting, so the first load after idle can take ~30–60 s)
+
 A tiny AI-assisted customer-support inbox for a fictional Shopify store. It lists customer messages, and when you click **Draft reply**, an agent writes a reply. The agent can look up the customer's real order in MongoDB before it answers. The draft is saved to the database and shown under the message.
 
 The app has two drafting modes, chosen automatically:
