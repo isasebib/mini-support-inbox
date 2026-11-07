@@ -57,5 +57,5 @@ export interface MessageView {
   draft: string | null;
   draftSource: "claude" | "demo" | null;
   error: string | null;
-  receivedAt: string;
+  receivedAt: string; // pre-formatted for display, e.g. "Nov 7, 2026, 10:10 PM"
 }

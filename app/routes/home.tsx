@@ -9,6 +9,8 @@ export function meta({}: Route.MetaArgs) {
   return [{ title: "Mini Support Inbox" }];
 }
 
+const dateFormat = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
+
 /** Runs on the server for every page load (and after every action): reads all messages. */
 export async function loader({}: Route.LoaderArgs) {
   const mode = getDraftMode();
@@ -25,7 +27,9 @@ export async function loader({}: Route.LoaderArgs) {
       draft: m.draft,
       draftSource: m.draftSource ?? null,
       error: m.error,
-      receivedAt: m.receivedAt.toISOString(),
+      // Formatted here (server) with a fixed locale so the server-rendered HTML
+      // and the browser render produce the same text (avoids hydration mismatch).
+      receivedAt: dateFormat.format(m.receivedAt),
     }));
     return { messages: view, dbError: null, mode };
   } catch (err) {
@@ -131,7 +135,7 @@ function MessageCard({ message: m }: { message: MessageView }) {
         <div>
           <h2 className="font-medium">{m.subject}</h2>
           <p className="text-xs text-gray-500">
-            {m.customerName} · {m.email} · {new Date(m.receivedAt).toLocaleString()}
+            {m.customerName} · {m.email} · {m.receivedAt}
           </p>
         </div>
         <StatusBadge status={isDrafting ? "drafting" : m.status} />
