@@ -44,6 +44,10 @@ The app has two drafting modes, chosen automatically:
    ```
    Open http://localhost:5173.
 
+## Deploy (Render, free)
+
+`render.yaml` describes the service. In Render, choose **New → Blueprint**, pick this repo, and enter `MONGODB_URI` when asked. In Atlas, allow `0.0.0.0/0` under Network Access, because Render's outbound IPs aren't fixed. The public demo runs in demo mode on purpose, so no API key is exposed to visitors. Free instances sleep when idle, so the first request takes about 30–60 seconds.
+
 ## How it works
 
 ```

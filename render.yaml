@@ -1,0 +1,14 @@
+# Render Blueprint: deploys the app as a free Node web service.
+# In Render: New -> Blueprint -> pick this repo. You'll be asked for MONGODB_URI.
+services:
+  - type: web
+    name: mini-support-inbox
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: MONGODB_URI
+        sync: false # secret: entered in the Render dashboard, never committed
+      # No ANTHROPIC_API_KEY on purpose: the public demo runs in free demo mode.
