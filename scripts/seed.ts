@@ -156,6 +156,7 @@ async function main() {
       ...m,
       status: "open" as const,
       draft: null,
+      draftSource: null,
       error: null,
       receivedAt: new Date(now - (rawMessages.length - i) * 37 * 60_000),
       updatedAt: new Date(),

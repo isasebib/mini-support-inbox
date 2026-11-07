@@ -13,6 +13,8 @@ export interface SupportMessage {
   status: MessageStatus;
   /** AI-generated reply draft (null until drafted). */
   draft: string | null;
+  /** Who wrote the draft: Claude, or the free rule-based demo drafter. */
+  draftSource: "claude" | "demo" | null;
   /** Last drafting error shown in the UI (null when OK). */
   error: string | null;
   receivedAt: Date;
@@ -53,6 +55,7 @@ export interface MessageView {
   body: string;
   status: MessageStatus;
   draft: string | null;
+  draftSource: "claude" | "demo" | null;
   error: string | null;
   receivedAt: string;
 }

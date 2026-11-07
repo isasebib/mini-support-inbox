@@ -1,7 +1,7 @@
 import { ObjectId } from "mongodb";
 import { useFetcher } from "react-router";
 import type { Route } from "./+types/home";
-import { draftReply } from "~/lib/agent.server";
+import { draftReply, getDraftMode } from "~/lib/agent.server";
 import { getCollections } from "~/lib/db.server";
 import type { MessageView } from "~/lib/types";
 
@@ -11,7 +11,7 @@ export function meta({}: Route.MetaArgs) {
 
 /** Runs on the server for every page load (and after every action): reads all messages. */
 export async function loader({}: Route.LoaderArgs) {
-  const hasApiKey = Boolean(process.env.OPENAI_API_KEY);
+  const mode = getDraftMode();
   try {
     const { messages } = await getCollections();
     const docs = await messages.find().sort({ receivedAt: -1 }).toArray();
@@ -23,14 +23,15 @@ export async function loader({}: Route.LoaderArgs) {
       body: m.body,
       status: m.status,
       draft: m.draft,
+      draftSource: m.draftSource ?? null,
       error: m.error,
       receivedAt: m.receivedAt.toISOString(),
     }));
-    return { messages: view, dbError: null, hasApiKey };
+    return { messages: view, dbError: null, mode };
   } catch (err) {
     // Show a friendly message instead of crashing the whole page.
     console.error(err);
-    return { messages: [] as MessageView[], dbError: (err as Error).message, hasApiKey };
+    return { messages: [] as MessageView[], dbError: (err as Error).message, mode };
   }
 }
 
@@ -45,9 +46,6 @@ export async function action({ request }: Route.ActionArgs): Promise<ActionResul
   const form = await request.formData();
   const messageId = String(form.get("messageId") ?? "");
 
-  if (!process.env.OPENAI_API_KEY) {
-    return { ok: false, error: "OPENAI_API_KEY is not set. Add it to your .env file and restart the dev server." };
-  }
   if (!ObjectId.isValid(messageId)) {
     return { ok: false, error: "Invalid message id." };
   }
@@ -58,10 +56,10 @@ export async function action({ request }: Route.ActionArgs): Promise<ActionResul
     const message = await messages.findOne({ _id });
     if (!message) return { ok: false, error: "Message not found." };
 
-    const draft = await draftReply(message);
+    const { draft, mode } = await draftReply(message);
     await messages.updateOne(
       { _id },
-      { $set: { draft, status: "drafted", error: null, updatedAt: new Date() } },
+      { $set: { draft, draftSource: mode, status: "drafted", error: null, updatedAt: new Date() } },
     );
     return { ok: true };
   } catch (err) {
@@ -78,7 +76,7 @@ export async function action({ request }: Route.ActionArgs): Promise<ActionResul
 }
 
 export default function Home({ loaderData }: Route.ComponentProps) {
-  const { messages, dbError, hasApiKey } = loaderData;
+  const { messages, dbError, mode } = loaderData;
   const drafted = messages.filter((m) => m.status === "drafted").length;
 
   return (
@@ -86,14 +84,14 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       <header className="mb-8">
         <h1 className="text-2xl font-semibold">Mini Support Inbox</h1>
         <p className="text-sm text-gray-500">
-          {messages.length} messages · {drafted} drafted · click "Draft reply" to let the AI agent write a response
+          {messages.length} messages · {drafted} drafted · click "Draft reply" to let the agent write a response
         </p>
       </header>
 
-      {!hasApiKey && (
+      {mode === "demo" && (
         <Banner tone="warn">
-          <strong>OPENAI_API_KEY is missing.</strong> You can browse messages, but drafting is disabled until you add
-          the key to <code>.env</code> and restart the server.
+          <strong>Demo mode:</strong> no <code>ANTHROPIC_API_KEY</code> is set, so drafts come from a free rule-based
+          drafter that still looks up orders in MongoDB. Add a key to <code>.env</code> and restart to use Claude.
         </Banner>
       )}
 
@@ -111,14 +109,14 @@ export default function Home({ loaderData }: Route.ComponentProps) {
 
       <ul className="space-y-4">
         {messages.map((m) => (
-          <MessageCard key={m.id} message={m} canDraft={hasApiKey} />
+          <MessageCard key={m.id} message={m} />
         ))}
       </ul>
     </main>
   );
 }
 
-function MessageCard({ message: m, canDraft }: { message: MessageView; canDraft: boolean }) {
+function MessageCard({ message: m }: { message: MessageView }) {
   // Each card gets its own fetcher, so several drafts can run at once and
   // the page doesn't navigate or lose scroll position.
   const fetcher = useFetcher<ActionResult>();
@@ -145,7 +143,7 @@ function MessageCard({ message: m, canDraft }: { message: MessageView; canDraft:
         <input type="hidden" name="messageId" value={m.id} />
         <button
           type="submit"
-          disabled={isDrafting || !canDraft}
+          disabled={isDrafting}
           className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isDrafting ? "Drafting…" : m.draft ? "Redraft reply" : "Draft reply"}
@@ -161,7 +159,7 @@ function MessageCard({ message: m, canDraft }: { message: MessageView; canDraft:
       {m.draft && (
         <div className={`mt-4 rounded-lg border-l-4 border-indigo-400 bg-indigo-50 p-4 dark:bg-indigo-950 ${isDrafting ? "opacity-50" : ""}`}>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
-            AI draft
+            {m.draftSource === "demo" ? "Demo draft (rule-based)" : "AI draft (Claude)"}
           </p>
           <p className="whitespace-pre-wrap text-sm">{m.draft}</p>
         </div>
