@@ -7,7 +7,6 @@ The app has two drafting modes, chosen automatically:
 - **Demo mode** (no key, free) uses a rule-based drafter that calls the same `lookupOrder` tool. It lets the whole app run without paying for an API key.
 
 ![Screenshot](docs/screenshot.png)
-<!-- TODO: add a screenshot at docs/screenshot.png -->
 
 ## Stack
 
