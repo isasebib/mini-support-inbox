@@ -42,12 +42,27 @@ export async function loader({}: Route.LoaderArgs) {
 type ActionResult = { ok: true } | { ok: false; error: string };
 
 /**
- * Handles POSTs from the "Draft reply" button.
- * Runs the agent, then saves the draft (or the error) on the message document.
+ * Handles POSTs from the page. The hidden `intent` field says which button sent it:
+ * - "reset": clear every draft and set all messages back to "open"
+ * - "draft" (default): run the agent on one message and save the draft (or the error)
  * After it returns, React Router re-runs the loader so the UI shows fresh data.
  */
 export async function action({ request }: Route.ActionArgs): Promise<ActionResult> {
   const form = await request.formData();
+
+  if (form.get("intent") === "reset") {
+    try {
+      const { messages } = await getCollections();
+      await messages.updateMany(
+        {},
+        { $set: { status: "open", draft: null, draftSource: null, error: null, updatedAt: new Date() } },
+      );
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  }
+
   const messageId = String(form.get("messageId") ?? "");
 
   if (!ObjectId.isValid(messageId)) {
@@ -85,17 +100,20 @@ export default function Home({ loaderData }: Route.ComponentProps) {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10">
-      <header className="mb-8">
-        <h1 className="text-2xl font-semibold">Mini Support Inbox</h1>
-        <p className="text-sm text-gray-500">
-          {messages.length} messages · {drafted} drafted · click "Draft reply" to let the agent write a response
-        </p>
+      <header className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">Mini Support Inbox</h1>
+          <p className="text-sm text-gray-500">
+            {messages.length} messages · {drafted} drafted · click "Draft reply" to let the agent write a response
+          </p>
+        </div>
+        <ResetButton disabled={messages.every((m) => m.status === "open")} />
       </header>
 
       {mode === "demo" && (
-        <Banner tone="warn">
-          <strong>Demo mode:</strong> no <code>ANTHROPIC_API_KEY</code> is set, so drafts come from a free rule-based
-          drafter that still looks up orders in MongoDB. Add a key to <code>.env</code> and restart to use Claude.
+        <Banner tone="info">
+          <strong>Demo mode:</strong> replies are written by a rule-based drafter that looks up each customer's real
+          order data. With an API key, the same flow runs a Claude agent that decides when to call the order-lookup tool.
         </Banner>
       )}
 
@@ -182,10 +200,28 @@ function StatusBadge({ status }: { status: MessageView["status"] | "drafting" })
   return <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${styles[status]}`}>{status}</span>;
 }
 
-function Banner({ tone, children }: { tone: "warn" | "error"; children: React.ReactNode }) {
+/** Clears all drafts so the demo can be tried again from a clean inbox. */
+function ResetButton({ disabled }: { disabled: boolean }) {
+  const fetcher = useFetcher<ActionResult>();
+  const isResetting = fetcher.state !== "idle";
+  return (
+    <fetcher.Form method="post" className="shrink-0">
+      <input type="hidden" name="intent" value="reset" />
+      <button
+        type="submit"
+        disabled={disabled || isResetting}
+        className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:hover:bg-gray-800"
+      >
+        {isResetting ? "Resetting…" : "Reset demo"}
+      </button>
+    </fetcher.Form>
+  );
+}
+
+function Banner({ tone, children }: { tone: "info" | "error"; children: React.ReactNode }) {
   const styles =
-    tone === "warn"
-      ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
+    tone === "info"
+      ? "border-indigo-200 bg-indigo-50 text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-200"
       : "border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200";
   return <div className={`mb-6 rounded-lg border p-4 text-sm ${styles}`}>{children}</div>;
 }
